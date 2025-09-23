@@ -9,3 +9,7 @@ const connection = new IORedis({
 });
 
 export const feedbackQueue = new Queue("feedback-queue", { connection });
+export const deadLetterQueue = new Queue("feedback-dead-queue", { connection });
+export const completedQueue = new Queue("feedback-completed-queue", {
+  connection,
+});
