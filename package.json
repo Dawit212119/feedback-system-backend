@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "bullmq": "^5.58.7",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "ioredis": "^5.8.0",
+    "nodemailer": "^7.0.6"
+  },
+  "name": "feedback-system-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "db.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
