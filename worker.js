@@ -2,29 +2,34 @@ import { Worker } from "bullmq";
 import IORedis from "ioredis";
 
 import dotenv from "dotenv";
-import { saveFeedback } from "./db";
-import { analyzeSentiments } from "./utils/ai";
-import { sendEmail } from "./utils/email";
-import { completedQueue, deadLetterQueue } from "./queue";
+import { saveFeedback } from "./db.js";
+import { analyzeSentiments } from "./utils/ai.js";
+import { sendEmail } from "./utils/email.js";
+import { completedQueue, deadLetterQueue } from "./queue.js";
 
 dotenv.config();
 const connection = new IORedis({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
+  password: process.env.REDIS_PASSWORD,
 });
 
-const worker = new Worker("feedback-queue", async (job) => {
-  console.log("Processing job:", job.id, job.data);
-  await saveFeedback(job.data);
-  const sentiments = analyzeSentiments(job.data.message);
-  console.log("Sentiments", sentiments);
+const worker = new Worker(
+  "feedback-queue",
+  async (job) => {
+    console.log("Processing job:", job.id, job.data);
+    await saveFeedback(job.data);
+    const sentiments = analyzeSentiments(job.data.message);
+    console.log("Sentiments", sentiments);
 
-  await sendEmail(
-    "New Feedback Recived",
-    `user: ${job.data.user}\n Message:${job.data.message}`
-  );
-  return { status: "processed", sentiments };
-});
+    await sendEmail(
+      "New Feedback Recived",
+      `user: ${job.data.user}\n Message:${job.data.message}`
+    );
+    return { status: "processed", sentiments };
+  },
+  { connection }
+);
 
 worker.on("completed", async (job) => {
   await completedQueue.add("completed-job", {
