@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import { feedbackQueue } from "./queue.js";
+import { feedbacks } from "./db.js";
 dotenv.config();
 const app = express();
 app.use(express.json());
@@ -27,6 +28,10 @@ app.get("/feedback/completed", async (req, res) => {
 app.get("/feedback/failed", async (req, res) => {
   const jobs = await feedbackQueue.getFailed();
   res.json(jobs);
+});
+app.get("/getfeedback", (req, res) => {
+  const feedback = feedbacks;
+  return res.json({ feedback });
 });
 
 app.listen(process.env.PORT, () => {

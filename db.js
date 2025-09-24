@@ -1,4 +1,4 @@
-const feedbacks = [];
+export const feedbacks = [];
 
 export const saveFeedback = async (feedback) => {
   feedbacks.push({ ...feedback, createdAt: new Date().toISOString() });

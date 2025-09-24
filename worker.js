@@ -12,6 +12,7 @@ const connection = new IORedis({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
   password: process.env.REDIS_PASSWORD,
+  maxRetriesPerRequest: null,
 });
 
 const worker = new Worker(
@@ -22,10 +23,10 @@ const worker = new Worker(
     const sentiments = analyzeSentiments(job.data.message);
     console.log("Sentiments", sentiments);
 
-    await sendEmail(
-      "New Feedback Recived",
-      `user: ${job.data.user}\n Message:${job.data.message}`
-    );
+    // await sendEmail(
+    //   "New Feedback Recived",
+    //   `user: ${job.data.user}\n Message:${job.data.message}`
+    // );
     return { status: "processed", sentiments };
   },
   { connection }
