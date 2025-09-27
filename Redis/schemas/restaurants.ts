@@ -13,4 +13,11 @@ export const RestaurantDetailsSchema = z.object({
       url: z.string().min(1),
     })
   ),
+  contact: z.object({
+    phone: z.string().min(1),
+    email: z.email(),
+  }),
 });
+
+export type Restaurant = z.infer<typeof RestaurantSchema>;
+export type RestaurantDetails = z.infer<typeof RestaurantDetailsSchema>;
