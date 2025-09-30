@@ -3,7 +3,7 @@ import restaurantsRouter from "./routes/restaurants.js";
 import cuisinesRouter from "./routes/review.js";
 const app = express();
 app.use(express.json());
-app.use("/resturant", restaurantsRouter);
+app.use("/restaurant", restaurantsRouter);
 app.use("/cuisines", cuisinesRouter);
 
 app
