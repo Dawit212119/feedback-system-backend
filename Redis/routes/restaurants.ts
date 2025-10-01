@@ -1,6 +1,7 @@
 import { Router, Response, Request, NextFunction } from "express";
 import {
   Restaurant,
+  RestaurantDetails,
   RestaurantDetailsSchema,
   RestaurantSchema,
 } from "../schemas/restaurants";
@@ -14,6 +15,7 @@ import {
   restaurantCuisinesKeyById,
   restaurantByRatingKey,
   restaurantWeatherById,
+  RestaurantDetailsKeyById,
 } from "../utils/keys";
 import { successResponse, errorResponse } from "../utils/response";
 import { nanoid } from "nanoid";
@@ -150,7 +152,46 @@ router.get(
     }
   }
 );
-router.post("/:restaurantId/details", validate(RestaurantDetailsSchema));
+router.post(
+  "/:restaurantId/details",
+  checkRestaurantExists,
+  validate(RestaurantDetailsSchema),
+  async (
+    req: Request<{ restaurantId: string }>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const { restaurantId } = req.params;
+    const data = req.body as RestaurantDetails;
+    try {
+      const client = await initializeRedisClient();
+      const restaurantDetailsKey = RestaurantDetailsKeyById(restaurantId);
+      await client.json.set(restaurantDetailsKey, ".", data);
+      return successResponse(res, {}, "Restaurant details added");
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+router.get(
+  "/restaurantId/details",
+  checkRestaurantExists,
+  async (
+    req: Request<{ restaurantId: string }>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const { restaurantId } = req.params;
+    try {
+      const client = await initializeRedisClient();
+      const restaurantDetailsKey = RestaurantDetailsKeyById(restaurantId);
+      const details = await client.json.get(restaurantDetailsKey);
+      return successResponse(res, details);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 router.post(
   "/:restaurantId/review",
   checkRestaurantExists,
