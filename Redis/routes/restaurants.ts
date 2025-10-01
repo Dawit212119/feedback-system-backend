@@ -12,6 +12,7 @@ import {
   cuisinesKey,
   cuisineKey,
   restaurantCuisinesKeyById,
+  restaurantByRatingKey,
 } from "../utils/keys";
 import { successResponse, errorResponse } from "../utils/response";
 import { nanoid } from "nanoid";
@@ -20,6 +21,35 @@ import { Review, ReviewSchema } from "../schemas/review";
 import { checkRestaurantExists } from "../middleware/checkRestaurantId";
 
 const router = Router();
+router.get(
+  "/",
+  async (
+    req: Request<{}, {}, {}, { page: string; limit: string | undefined }>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const { page = 1, limit = 10 } = req.query;
+    const start = Number(page) - 1 * Number(limit);
+    const end = start + Number(limit);
+    try {
+      const client = await initializeRedisClient();
+      const restaurantsId = await client.zRange(
+        restaurantByRatingKey,
+        start,
+        end,
+        {
+          REV: true,
+        }
+      );
+      const restaurants = await Promise.all(
+        restaurantsId.map((id) => client.hGetAll(restaurantKeyById(id)))
+      );
+      return successResponse(res, restaurants);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 router.post(
   "/",
   validate(RestaurantSchema),
@@ -44,6 +74,10 @@ router.post(
           ])
         ),
         client.hSet(restaurantKey, hashData),
+        client.zAdd(restaurantByRatingKey, {
+          score: 0,
+          value: id,
+        }),
       ]);
       console.log(`Added data ${addResult}`);
 
@@ -93,6 +127,7 @@ router.post(
       const client = await initializeRedisClient();
       const reviewId = nanoid();
       const reviewKey = reviewKeyById(restaurantId);
+      const restaurantKey = restaurantKeyById(restaurantId);
       const reviewDetailsKey = reviewDetailsKeyById(reviewId);
       const reviewData = {
         id: reviewId,
@@ -100,9 +135,20 @@ router.post(
         timestamp: Date.now(),
         restaurantId,
       };
-      await Promise.all([
+      const [reviewCount, setResult, totalStars] = await Promise.all([
         client.lPush(reviewKey, reviewId),
         client.hSet(reviewDetailsKey, reviewData),
+        client.hIncrByFloat(restaurantKey, "totalStars", data.rating),
+      ]);
+      const averageRating = Number(
+        (Number(totalStars) / reviewCount).toFixed(1)
+      );
+      await Promise.all([
+        client.zAdd(restaurantByRatingKey, {
+          score: averageRating,
+          value: restaurantId,
+        }),
+        client.hSet(restaurantKey, "avgStars", averageRating),
       ]);
       return successResponse(res, reviewData, "Review added");
     } catch (error) {
