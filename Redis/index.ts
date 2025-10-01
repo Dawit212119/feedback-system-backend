@@ -1,6 +1,6 @@
 import express from "express";
 import restaurantsRouter from "./routes/restaurants.js";
-import cuisinesRouter from "./routes/review.js";
+import cuisinesRouter from "./routes/cuisines.js";
 const app = express();
 app.use(express.json());
 app.use("/restaurant", restaurantsRouter);

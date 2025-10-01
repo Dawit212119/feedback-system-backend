@@ -9,13 +9,15 @@ import {
   restaurantKeyById,
   reviewKeyById,
   reviewDetailsKeyById,
+  cuisinesKey,
+  cuisineKey,
+  restaurantCuisinesKeyById,
 } from "../utils/keys";
-import { successResponse,errorResponse } from "../utils/response";
+import { successResponse, errorResponse } from "../utils/response";
 import { nanoid } from "nanoid";
 import { validate } from "../middleware/validate";
 import { Review, ReviewSchema } from "../schemas/review";
 import { checkRestaurantExists } from "../middleware/checkRestaurantId";
-import { success } from "zod/mini";
 
 const router = Router();
 router.post(
@@ -33,7 +35,16 @@ router.post(
       const id = nanoid();
       const restaurantKey = restaurantKeyById(id);
       const hashData = { id, name: data.name, location: data.location };
-      const addResult = await client.hSet(restaurantKey, hashData);
+      const addResult = await Promise.all([
+        ...data.cuisines.map((cuisine) =>
+          Promise.all([
+            client.sAdd(cuisinesKey, cuisine),
+            client.sAdd(cuisineKey(cuisine), id),
+            client.sAdd(restaurantCuisinesKeyById(id), cuisine),
+          ])
+        ),
+        client.hSet(restaurantKey, hashData),
+      ]);
       console.log(`Added data ${addResult}`);
 
       return successResponse(res, hashData, "Added new restaurant");
@@ -55,9 +66,13 @@ router.get(
     try {
       const client = await initializeRedisClient();
       const restaurantKey = restaurantKeyById(restaurantId);
-      const [viewCount,restaurant] = await Promise.all([client.hIncrBy(restaurantKey,"viewCount",1),client.hGetAll(restaurantKey); ]) 
-      return successResponse(res, restaurant);
-    }catch (error) {
+      const [viewCount, restaurant, cuisines] = await Promise.all([
+        client.hIncrBy(restaurantKey, "viewCount", 1),
+        client.hGetAll(restaurantKey),
+        client.sMembers(restaurantCuisinesKeyById(restaurantId)),
+      ]);
+      return successResponse(res, { ...restaurant, cuisines });
+    } catch (error) {
       next(error);
     }
   }
@@ -85,50 +100,71 @@ router.post(
         timestamp: Date.now(),
         restaurantId,
       };
-     await Promise.all([
-        client.lPush(reviewKey,reviewId),
-        client.hSet(reviewDetailsKey,reviewData),
+      await Promise.all([
+        client.lPush(reviewKey, reviewId),
+        client.hSet(reviewDetailsKey, reviewData),
       ]);
-      return successResponse(res,reviewData,"Review added")
+      return successResponse(res, reviewData, "Review added");
     } catch (error) {
       next(error);
     }
   }
 );
-router.get("/:restaurantId/reviews",checkRestaurantExists),
-async(req:Request<{restaurantId:string},{},{},{page:string?,limit:string?}>,res:Response,next:NextFunction)=>{
-     const {restaurantId}=req.params;
-     const {page=1,limit=10}=req.query;
-     const start=Number(page)-1 * Number(limit)
-     const end=start +  Number(limit) -1
-     try{
-      const client=await initializeRedisClient()
-      const reviewKey=reviewKeyById(restaurantId);
-      const reviewsId=await client.lRange(reviewKey,start,end);
-      const reviews=await Promise.all(reviewsId.map(id=>await client.hGetAll(reviewDetailsKeyById(id))))
-      return successResponse(res,reviews,"Restaurant review")
-    }catch(error){
-      next(error)
-     }
-}
-router.delete("/:restaurantId/reviews/:reviewId", async(req:Request<{restaurantId:string,reviewId:string}>,res:Response,next:NextFunction)=>{
-  const {restaurantId,reviewId}=req.params;
-
-  try{
-    const client=await initializeRedisClient();
-    const reviewKey=reviewKeyById(restaurantId);
-    const reviewDetailsKey=reviewDetailsKeyById(reviewId);
-    const [removeResult,deleteResult]=await Promise.all([
-      client.lRem(reviewKey,0,reviewId),
-      client.del(reviewDetailsKey)
-    ])
-    if(removeResult ===0 && deleteResult===0){
-      return errorResponse(res,404,"Review not found")
+router.get(
+  "/:restaurantId/reviews",
+  checkRestaurantExists,
+  async (
+    req: Request<
+      { restaurantId: string },
+      {},
+      {},
+      { page: string; limit: string | undefined }
+    >,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const { restaurantId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const start = Number(page) - 1 * Number(limit);
+    const end = start + Number(limit) - 1;
+    try {
+      const client = await initializeRedisClient();
+      const reviewKey = reviewKeyById(restaurantId);
+      const reviewsId = await client.lRange(reviewKey, start, end);
+      const reviews = await Promise.all(
+        reviewsId.map((id) => client.hGetAll(reviewDetailsKeyById(id)))
+      );
+      return successResponse(res, reviews, "Restaurant review");
+    } catch (error) {
+      next(error);
     }
-    return successResponse(res,reviewId,"Review deleted")
-  }catch(error){next(error)}
-  
-})
+  }
+);
+router.delete(
+  "/:restaurantId/reviews/:reviewId",
+  async (
+    req: Request<{ restaurantId: string; reviewId: string }>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    const { restaurantId, reviewId } = req.params;
 
+    try {
+      const client = await initializeRedisClient();
+      const reviewKey = reviewKeyById(restaurantId);
+      const reviewDetailsKey = reviewDetailsKeyById(reviewId);
+      const [removeResult, deleteResult] = await Promise.all([
+        client.lRem(reviewKey, 0, reviewId),
+        client.del(reviewDetailsKey),
+      ]);
+      if (removeResult === 0 && deleteResult === 0) {
+        return errorResponse(res, 404, "Review not found");
+      }
+      return successResponse(res, reviewId, "Review deleted");
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 export default router;
